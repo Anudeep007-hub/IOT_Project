@@ -21,29 +21,29 @@
   <div id="status"></div>
 
   <script>
-  document.getElementById("loginForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const username = document.getElementById("username").value;
-    const password = document.getElementById("password").value;
+    document.getElementById("loginForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const username = document.getElementById("username").value;
+      const password = document.getElementById("password").value;
 
-    try {
-      const response = await fetch("/api/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      });
-      const data = await response.json();
+      try {
+        const response = await fetch("/api/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: username, password: password })
+        });
+        const data = await response.json();
 
-      if (data.status === "success") {
-        // Redirect to the main page
-        window.location.href = "/";
-      } else {
-        document.getElementById("status").innerText = data.message;
+        if (data.status === "success") {
+          window.location.href = "/";
+        } else {
+          document.getElementById("status").innerText = data.message;
+        }
+      } catch (error) {
+        document.getElementById("status").innerText = "Login failed. Please try again.";
       }
-    } catch (error) {
-      document.getElementById("status").innerText = "Login failed. Please try again.";
-    }
-  });
+    });
   </script>
 </body>
 </html>
+

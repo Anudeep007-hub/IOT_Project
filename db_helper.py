@@ -70,6 +70,18 @@ class DatabaseHelper:
                 'timestamps': user.get('timestamps', [])
             }
         return None
+    
+    def get_all_users_history(self):
+        users = self.users_collection.find()
+        result = []
+        for user in users:
+            result.append({
+                'name': user['name'],
+                'visit_count': len(user.get('timestamps', [])),
+                'timestamps': [ts.strftime('%m/%d/%Y, %I:%M:%S %p') for ts in user.get('timestamps', [])],
+                'images': user.get('images', [])
+            })
+        return result
 
     def get_latest_image(self, name):
         """Get user's most recent image"""

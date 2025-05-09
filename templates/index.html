@@ -17,7 +17,8 @@
 </head>
 <body>
   <h2>Real-Time Face Recognition</h2>
-  <button onclick="detectFace()">Scan Face</button>
+  <button onclick="detectFace()">Detect Face</button>
+  <button onclick="registerFace()">Register Face</button> 
   <button onclick="clearData()" style="background-color: #ff4444; color: white;">Clear All Data</button>
   <button onclick="openGate()" style="background-color: #4CAF50; color: white;">Open Gate</button>
   <button id="logoutButton" style="background-color: #ff4444; color: white; padding: 10px 20px; font-size: 1rem;">Logout</button>
@@ -26,75 +27,86 @@
   <div id="userHistory">
     <h3>Visit History</h3>
     <button id="toggleHistoryBtn" onclick="toggleHistory()">View History</button>
-    <table id="historyTable" class="hidden">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Total Visits</th>
-          <th>Recent Visit (Timestamp)</th>
-        </tr>
-      </thead>
-      <tbody id="historyContent"></tbody>
-    </table>
+
+<table id="historyTable" class="hidden">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Total Visits</th>
+      <th>Visit Timestamps</th>
+      <th>View Images</th>
+    </tr>
+  </thead>
+  <tbody id="historyContent"></tbody>
+</table>
   </div>
 
   <script>
 
-document.addEventListener("DOMContentLoaded", async () => {
-    try {
-      const response = await fetch("/api/protected", { method: "GET" });
-      if (response.status === 403) {
-        alert("Unauthorized! Redirecting to login page.");
-        window.location.href = "/login";
+
+    async function detectFace() {
+      document.getElementById("status").innerText = "Detecting face, please wait...";
+      document.getElementById("result").innerHTML = "";
+
+      try {
+        const response = await fetch("/api/predict_face", {
+          method: "POST",
+        });
+
+        const data = await response.json();
+
+        if (data.status === "success") {
+          const msg = `Detected: ${data.name} (${data.label})`;
+          const imageURL = data.image_path;
+
+          document.getElementById("status").innerText = msg;
+          document.getElementById("result").innerHTML = `<img src="${imageURL}" alt="Face Image">`;
+
+          if (data.name !== "Unknown") {
+            await showUserHistory(data.name);
+          }
+        } else {
+          document.getElementById("status").innerText = data.message;
+        }
+      } catch (error) {
+        document.getElementById("status").innerText = "Error detecting face. Please try again.";
+        console.error("Error:", error);
       }
-    } catch (error) {
-      console.error("Error checking authentication:", error);
-      alert("Unauthorized! Redirecting to login page.");
-      window.location.href = "/login";
     }
-  });
-  async function detectFace() {
-  document.getElementById("status").innerText = "Detecting face, please wait...";
-  document.getElementById("result").innerHTML = "";
 
-  try {
-    const response = await fetch("/api/predict_face", {
-      method: "POST",
-      credentials: "include", // Include cookies in the request
-    });
-
-    if (response.status === 403) {
-      alert("Unauthorized! Redirecting to login page.");
-      window.location.href = "/login";
+    async function registerFace() {
+    const name = prompt("Enter the name to register:");
+    if (!name) {
+      document.getElementById("status").innerText = "Registration cancelled.";
       return;
     }
 
-    const data = await response.json();
+    document.getElementById("status").innerText = `Registering face for ${name}...`;
+    document.getElementById("result").innerHTML = "";
 
-    if (data.status === "success") {
-      const msg = `Detected: ${data.name} (${data.label})`;
-      const imageURL = data.image_path;
+    try {
+      const response = await fetch(`/api/register_face?name=${encodeURIComponent(name)}`);
+      const data = await response.json();
 
-      document.getElementById("status").innerText = msg;
-      document.getElementById("result").innerHTML = `<img src="${imageURL}" alt="Face Image">`;
-
-      if (data.name !== "Unknown") {
-        await showUserHistory(data.name);
+      if (data.status === "success") {
+        document.getElementById("status").innerText = data.message;
+      } else {
+        document.getElementById("status").innerText = `Error: ${data.message}`;
       }
-    } else {
-      document.getElementById("status").innerText = data.message;
+    } catch (error) {
+      document.getElementById("status").innerText = `Error registering face: ${error}`;
+      console.error("Error:", error);
     }
-  } catch (error) {
-    document.getElementById("status").innerText = "Error detecting face. Please try again.";
-    console.error("Error:", error);
   }
-}
+
 
     async function clearData() {
       if (confirm("Are you sure? This will delete all registered faces and stored images.")) {
         try {
           document.getElementById("status").innerText = "Clearing data...";
-          const response = await fetch("/api/clear_data", { method: "POST" });
+          const response = await fetch("/api/clear_data", {
+            method: "POST",
+          });
           const data = await response.json();
           document.getElementById("status").innerText = data.message;
           document.getElementById("result").innerHTML = "";
@@ -106,42 +118,169 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     async function showUserHistory(name) {
       try {
-        const response = await fetch(`/api/user_history/${name}`);
+        const response = await fetch(`/api/user_history/${name}`, {
+        });
         const data = await response.json();
         
         if (data.status === 'success') {
           const history = data.data;
-          const historyHtml = history.timestamps.map(ts => `
-            <tr>
-              <td>${history.name}</td>
-              <td>${history.visit_count}</td>
-              <td>${new Date(ts).toLocaleString()}</td>
-            </tr>
-          `).join('');
-          document.getElementById('historyContent').innerHTML = historyHtml;
+          const tbody = document.getElementById('historyContent');
+tbody.innerHTML = '';
+
+const row = document.createElement('tr');
+
+// Name
+const nameCell = document.createElement('td');
+nameCell.textContent = history.name;
+row.appendChild(nameCell);
+
+// Total Visits
+const visitCountCell = document.createElement('td');
+visitCountCell.textContent = history.visit_count;
+row.appendChild(visitCountCell);
+
+// Visit Timestamps (View button)
+const timestampCell = document.createElement('td');
+const toggleTimestampsBtn = document.createElement('button');
+toggleTimestampsBtn.textContent = "View";
+const timestampList = document.createElement('ul');
+timestampList.style.display = 'none';
+
+history.timestamps.forEach(ts => {
+  const li = document.createElement('li');
+  li.textContent = new Date(ts).toLocaleString();
+  timestampList.appendChild(li);
+});
+
+toggleTimestampsBtn.onclick = () => {
+  timestampList.style.display = timestampList.style.display === 'none' ? 'block' : 'none';
+};
+
+timestampCell.appendChild(toggleTimestampsBtn);
+timestampCell.appendChild(timestampList);
+row.appendChild(timestampCell);
+
+// View Images (optional)
+const imageCell = document.createElement('td');
+const viewImgBtn = document.createElement('button');
+viewImgBtn.textContent = "View";
+const imgDiv = document.createElement('div');
+imgDiv.style.display = 'none';
+
+if (history.images) {
+  history.images.forEach(img => {
+    const image = document.createElement('img');
+    image.src = `data:image/jpeg;base64,${img.image_data}`;
+    image.style.width = '100px';
+    image.style.margin = '5px';
+    imgDiv.appendChild(image);
+  });
+}
+
+viewImgBtn.onclick = () => {
+  imgDiv.style.display = imgDiv.style.display === 'none' ? 'block' : 'none';
+};
+
+imageCell.appendChild(viewImgBtn);
+imageCell.appendChild(imgDiv);
+row.appendChild(imageCell);
+
+tbody.appendChild(row);
+
         }
       } catch (error) {
         console.error('Error fetching user history:', error);
       }
     }
 
-    function toggleHistory() {
-      const historyTable = document.getElementById("historyTable");
-      const toggleButton = document.getElementById("toggleHistoryBtn");
+    async function fetchAndRenderHistory() {
+  const response = await fetch('/api/all_user_history');
+  const result = await response.json();
 
-      if (historyTable.classList.contains("hidden")) {
-        historyTable.classList.remove("hidden");
-        toggleButton.textContent = "Hide History";
-      } else {
-        historyTable.classList.add("hidden");
-        toggleButton.textContent = "View History";
-      }
-    }
+  if (result.status === 'success') {
+    const tbody = document.getElementById('historyContent');
+    tbody.innerHTML = '';
+
+    result.data.forEach(user => {
+      const row = document.createElement('tr');
+
+      // Name
+      const nameCell = document.createElement('td');
+      nameCell.textContent = user.name;
+      row.appendChild(nameCell);
+
+      // Total Visits
+      const visitCountCell = document.createElement('td');
+      visitCountCell.textContent = user.visit_count;
+      row.appendChild(visitCountCell);
+
+      // Visit Timestamps with toggle
+      const timestampCell = document.createElement('td');
+      const toggleTimestampsBtn = document.createElement('button');
+      toggleTimestampsBtn.textContent = "View";
+      const timestampList = document.createElement('ul');
+      timestampList.style.display = 'none';
+
+      user.timestamps.forEach(ts => {
+        const li = document.createElement('li');
+        li.textContent = ts;
+        timestampList.appendChild(li);
+      });
+
+      toggleTimestampsBtn.onclick = () => {
+        timestampList.style.display = timestampList.style.display === 'none' ? 'block' : 'none';
+      };
+
+      timestampCell.appendChild(toggleTimestampsBtn);
+      timestampCell.appendChild(timestampList);
+      row.appendChild(timestampCell);
+
+      // View Images (Optional - you can keep this or skip)
+      const imageCell = document.createElement('td');
+      const viewImgBtn = document.createElement('button');
+      viewImgBtn.textContent = "View";
+      const imgDiv = document.createElement('div');
+      imgDiv.style.display = 'none';
+      user.images.forEach(img => {
+        const image = document.createElement('img');
+        image.src = `data:image/jpeg;base64,${img.image_data}`;
+        image.style.width = '100px';
+        image.style.margin = '5px';
+        imgDiv.appendChild(image);
+      });
+
+      viewImgBtn.onclick = () => {
+        imgDiv.style.display = imgDiv.style.display === 'none' ? 'block' : 'none';
+      };
+
+      imageCell.appendChild(viewImgBtn);
+      imageCell.appendChild(imgDiv);
+      row.appendChild(imageCell);
+
+      tbody.appendChild(row);
+    });
+  }
+}
+function toggleHistory() {
+  const table = document.getElementById("historyTable");
+  const btn = document.getElementById("toggleHistoryBtn");
+
+  if (table.classList.contains("hidden")) {
+    table.classList.remove("hidden");
+    btn.textContent = "Hide History";
+    fetchAndRenderHistory();  // fetch only when visible
+  } else {
+    table.classList.add("hidden");
+    btn.textContent = "View History";
+  }
+}
 
     async function openGate() {
       try {
         document.getElementById("status").innerText = "Opening gate...";
-        const response = await fetch("/api/open_gate", { method: "POST" });
+        const response = await fetch("/api/open_gate", {
+          method: "POST",
+        });
         const data = await response.json();
 
         if (data.status === 'success') {
@@ -154,21 +293,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     }
 
-    document.getElementById("logoutButton").addEventListener("click", async () => {
-    try {
-      // Call the logout endpoint to clear the cookie
-      const response = await fetch("/api/logout", { method: "POST", credentials: "include" });
-      if (response.status === 200) {
-        alert("You have been logged out.");
-        window.location.href = "/login"; // Redirect to the login page
-      } else {
-        alert("Failed to log out. Please try again.");
-      }
-    } catch (error) {
-      console.error("Error logging out:", error);
-      alert("An error occurred while logging out.");
-    }
-  });
+    document.getElementById("logoutButton").addEventListener("click", () => {
+      alert("You have been logged out.");
+      window.location.href = "/login"; // Redirect to the login page
+    });
   </script>
 </body>
 </html>
